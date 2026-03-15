@@ -1,0 +1,16 @@
+## Interface: 120001
+## Title: LXCG
+## Notes: Virtual card table
+## Author: LX
+## Version: 0.4.0
+## SavedVariables: LXCG_AccountDB
+## SavedVariablesPerCharacter: LXCG_CharDB
+
+Core.lua
+Data.lua
+Storage.lua
+Network.lua
+UI_Cards.lua
+UI_Panels.lua
+UI_Table.lua
+UI_Builder.lua
