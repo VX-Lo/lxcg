@@ -1,0 +1,563 @@
+--------------------------------------------------------------------------------
+-- LXCG UI_Builder.lua v0.4 — Shared icon picker, template editor with fields,
+-- deck builder with deck properties
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+-- Shared icon picker (LXCG.IconPicker)
+--------------------------------------------------------------------------------
+LXCG.IconPicker = {}
+
+local CURATED_ICONS = {
+    "Spell_Fire_FlameBolt","Spell_Fire_Fireball02","Spell_Fire_Fire",
+    "Spell_Fire_Immolation","Spell_Fire_FlameShock","Spell_Fire_Incinerate",
+    "Spell_Fire_SelfDestruct","Spell_Fire_MasterOfElements","Spell_Fire_FlameStrike",
+    "Spell_Fire_FelFire","Spell_Fire_BlueFlameBolt","Spell_Fire_LavaSpawn",
+    "Spell_Frost_FrostBolt02","Spell_Frost_IceStorm","Spell_Frost_FrostShock",
+    "Spell_Frost_Glacier","Spell_Frost_FreezingBreath","Spell_Frost_FrostBlast",
+    "Spell_Frost_ManaRecharge","Spell_Frost_FrostArmor02","Spell_Frost_IceShards",
+    "Spell_Nature_Lightning","Spell_Nature_LightningShield","Spell_Nature_Thorns",
+    "Spell_Nature_HealingTouch","Spell_Nature_Rejuvenation","Spell_Nature_AbolishMagic",
+    "Spell_Nature_StarFall","Spell_Nature_Earthquake","Spell_Nature_EarthShock",
+    "Spell_Nature_ProtectionformNature","Spell_Nature_WispSplode",
+    "Spell_Shadow_ShadowBolt","Spell_Shadow_CurseOfSargeras","Spell_Shadow_DeathAndDecay",
+    "Spell_Shadow_RaiseDead","Spell_Shadow_DarkRitual","Spell_Shadow_Possession",
+    "Spell_Shadow_ShadowWordPain","Spell_Shadow_UnholyFrenzy","Spell_Shadow_LifeDrain02",
+    "Spell_Shadow_AbominationExplosion","Spell_Shadow_GatherShadows",
+    "Spell_Holy_HolyBolt","Spell_Holy_Resurrection","Spell_Holy_HolySmite",
+    "Spell_Holy_DivineSpirit","Spell_Holy_PowerWordShield","Spell_Holy_InnerFire",
+    "Spell_Holy_SealOfMight","Spell_Holy_HolyNova","Spell_Holy_SurgeOfLight",
+    "Spell_Arcane_Blast","Spell_Arcane_StarFire","Spell_Arcane_Blink",
+    "Spell_Arcane_PortalDalaran","Spell_Arcane_MassDispel","Spell_Arcane_ArcaneTorrent",
+    "INV_Sword_04","INV_Sword_39","INV_Sword_27",
+    "INV_Axe_01","INV_Axe_03","INV_Mace_01","INV_Mace_02",
+    "INV_Staff_01","INV_Staff_08","INV_Weapon_Bow_07","INV_Weapon_Crossbow_01",
+    "INV_Knife_1H_01","INV_ThrowingKnife_01","INV_Shield_04","INV_Shield_06",
+    "INV_Weapon_Halberd_01",
+    "INV_Helmet_01","INV_Helmet_04","INV_Chest_Plate01","INV_Chest_Chain",
+    "INV_Pants_01","INV_Boots_01","INV_Gauntlets_04","INV_Belt_01",
+    "INV_Shoulder_01","INV_Crown_01","INV_Jewelry_Ring_01","INV_Jewelry_Necklace_01",
+    "INV_Potion_01","INV_Potion_54","INV_Potion_24",
+    "INV_Scroll_01","INV_Misc_Book_09","INV_Misc_Book_01",
+    "INV_Misc_Key_01","INV_Misc_Key_03","INV_Chest_Leather_01","INV_Misc_Bag_07",
+    "INV_Misc_Coin_01","INV_Misc_Coin_17","INV_Misc_Rune_01","INV_Misc_Rune_06",
+    "INV_Misc_Map_01","INV_Misc_Spyglass_02",
+    "INV_Misc_Gem_Ruby_01","INV_Misc_Gem_Emerald_01","INV_Misc_Gem_Sapphire_01",
+    "INV_Misc_Gem_Diamond_01","INV_Misc_Gem_Opal_01","INV_Misc_Gem_Bloodstone_01",
+    "INV_Misc_Gem_Pearl_01","INV_Misc_Gem_AmberCut",
+    "Ability_Hunter_Pet_Bear","Ability_Hunter_Pet_Wolf","Ability_Hunter_Pet_Cat",
+    "Ability_Hunter_Pet_Spider","Ability_Hunter_Pet_Boar","Ability_Hunter_Pet_Turtle",
+    "Ability_Hunter_Pet_Gorilla","Ability_Hunter_Pet_Raptor",
+    "Ability_Druid_CatForm","Ability_Racial_BearForm",
+    "INV_Misc_Fish_14","INV_Misc_MonsterHead_01",
+    "Ability_Warrior_Charge","Ability_Rogue_Ambush","Ability_Warrior_ShieldWall",
+    "Ability_Warrior_Cleave","Ability_Backstab","Ability_Kick",
+    "Ability_Vanish","Ability_ThunderBolt","Ability_ThunderClap",
+    "Ability_Stealth","Ability_CriticalStrike",
+    "Trade_Engineering","Trade_Alchemy","Trade_Blacksmithing","Trade_Mining",
+    "Trade_Herbalism","Trade_Tailoring","Trade_Engraving","Trade_Fishing",
+    "Ability_Repair","INV_Misc_Gear_01","INV_Misc_PocketWatch_01",
+    "INV_Misc_QuestionMark","Spell_ChargePositive","Spell_ChargeNegative",
+}
+
+local allIconData, pickerState
+local PCOLS, PROWS, PICON, PPAD = 8, 9, 32, 3
+
+local function EnsureIconData()
+    if allIconData then return end
+    allIconData = {}
+    for _, name in ipairs(CURATED_ICONS) do
+        allIconData[#allIconData + 1] = { id = "Interface\\Icons\\" .. name, name = name }
+    end
+    local blizz = {}
+    if type(GetMacroIcons) == "function" then GetMacroIcons(blizz) end
+    if type(GetMacroItemIcons) == "function" then GetMacroItemIcons(blizz) end
+    for _, fid in ipairs(blizz) do allIconData[#allIconData + 1] = { id = fid, name = nil } end
+end
+
+local function FilterIcons(query)
+    local q = strlower(strtrim(query or ""))
+    pickerState.filtered = {}
+    for _, e in ipairs(allIconData) do
+        if q == "" or (e.name and strlower(e.name):find(q, 1, true)) then
+            pickerState.filtered[#pickerState.filtered + 1] = e
+        end
+    end
+    pickerState.scrollOffset = 0
+    if pickerState.slider then
+        local maxS = math.max(0, math.ceil(#pickerState.filtered / PCOLS) - PROWS)
+        pickerState.slider:SetMinMaxValues(0, maxS); pickerState.slider:SetValue(0)
+    end
+    if pickerState.countText then
+        local s, t = #pickerState.filtered, #allIconData
+        pickerState.countText:SetText("|cff888888" .. (s == t and (s .. " icons") or (s .. " of " .. t)) .. "|r")
+    end
+end
+
+local function UpdatePickerGrid()
+    local start = pickerState.scrollOffset * PCOLS + 1
+    for i = 1, PCOLS * PROWS do
+        local btn = pickerState.gridBtns[i]
+        if not btn then break end
+        local di = start + i - 1
+        if di <= #pickerState.filtered then
+            btn._tex:SetTexture(pickerState.filtered[di].id)
+            btn._entry = pickerState.filtered[di]; btn:Show()
+        else btn._entry = nil; btn:Hide() end
+    end
+end
+
+local function BuildIconPickerFrame()
+    local gW = PCOLS * (PICON + PPAD); local gH = PROWS * (PICON + PPAD)
+    local pf = CreateFrame("Frame", "LXCGIconPicker", UIParent, "BackdropTemplate")
+    pf:SetSize(gW + 52, gH + 80); pf:SetPoint("CENTER"); pf:SetFrameStrata("FULLSCREEN_DIALOG")
+    pf:SetBackdrop({ bgFile="Interface\\Buttons\\WHITE8x8", edgeFile="Interface\\Buttons\\WHITE8x8", edgeSize=2 })
+    pf:SetBackdropColor(0.08, 0.08, 0.1, 0.98); pf:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
+    pf:EnableMouse(true); pf:Hide()
+    pf:CreateFontString(nil, "OVERLAY", "GameFontNormal"):SetPoint("TOP", 0, -8)
+    local cb = CreateFrame("Button", nil, pf, "UIPanelCloseButton"); cb:SetPoint("TOPRIGHT", -2, -2)
+    cb:SetScript("OnClick", function() pf:Hide() end)
+    local sb = CreateFrame("EditBox", nil, pf, "InputBoxTemplate")
+    sb:SetSize(gW, 20); sb:SetPoint("TOPLEFT", 10, -28); sb:SetAutoFocus(false)
+    pickerState.searchBox = sb
+    local ph = sb:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    ph:SetPoint("LEFT", 4, 0); ph:SetText("|cff666666Search or browse...|r")
+    sb:SetScript("OnTextChanged", function(eb)
+        ph:SetShown(eb:GetText() == ""); FilterIcons(eb:GetText()); UpdatePickerGrid()
+    end)
+    pickerState.countText = pf:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    pickerState.countText:SetPoint("TOPLEFT", 10, -50)
+    local ga = CreateFrame("Frame", nil, pf); ga:SetSize(gW, gH); ga:SetPoint("TOPLEFT", 10, -64)
+    ga:EnableMouseWheel(true)
+    for i = 1, PCOLS * PROWS do
+        local r = math.floor((i - 1) / PCOLS); local c = (i - 1) % PCOLS
+        local btn = CreateFrame("Button", nil, ga); btn:SetSize(PICON, PICON)
+        btn:SetPoint("TOPLEFT", c * (PICON + PPAD), -r * (PICON + PPAD))
+        local tex = btn:CreateTexture(nil, "ARTWORK"); tex:SetAllPoints(); tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        btn._tex = tex
+        local hl = btn:CreateTexture(nil, "HIGHLIGHT"); hl:SetAllPoints(); hl:SetColorTexture(1, 1, 1, 0.3)
+        btn:SetScript("OnClick", function(self)
+            if not self._entry or not pickerState.callback then return end
+            local e = self._entry
+            pickerState.callback(e.id, e.name or tostring(e.id)); pf:Hide()
+        end)
+        btn:SetScript("OnEnter", function(self)
+            if not self._entry then return end
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine(self._entry.name or ("Icon #" .. tostring(self._entry.id)), 1, 1, 1)
+            GameTooltip:Show()
+        end)
+        btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        pickerState.gridBtns[i] = btn
+    end
+    local sl = CreateFrame("Slider", nil, pf); sl:SetSize(16, gH)
+    sl:SetPoint("TOPLEFT", ga, "TOPRIGHT", 4, 0); sl:SetOrientation("VERTICAL")
+    sl:SetMinMaxValues(0, 0); sl:SetValue(0); sl:SetValueStep(1); sl:SetObeyStepOnDrag(true); sl:EnableMouse(true)
+    local slBg = sl:CreateTexture(nil, "BACKGROUND"); slBg:SetAllPoints(); slBg:SetColorTexture(0.12, 0.12, 0.15, 1)
+    local th = sl:CreateTexture(nil, "OVERLAY"); th:SetSize(16, 24); th:SetColorTexture(0.4, 0.4, 0.5, 1)
+    sl:SetThumbTexture(th)
+    sl:SetScript("OnValueChanged", function(_, val)
+        pickerState.scrollOffset = math.floor(val + 0.5); UpdatePickerGrid()
+    end)
+    pickerState.slider = sl
+    ga:SetScript("OnMouseWheel", function(_, delta)
+        local mn, mx = sl:GetMinMaxValues()
+        sl:SetValue(math.max(mn, math.min(mx, sl:GetValue() - delta * 3)))
+    end)
+    pickerState.frame = pf
+end
+
+function LXCG.IconPicker:Open(callback)
+    if not pickerState then
+        pickerState = { filtered = {}, scrollOffset = 0, callback = nil, gridBtns = {}, frame = nil }
+    end
+    EnsureIconData()
+    if not pickerState.frame then BuildIconPickerFrame() end
+    pickerState.callback = callback
+    pickerState.searchBox:SetText("")
+    FilterIcons(""); UpdatePickerGrid()
+    pickerState.frame:Show()
+end
+
+--------------------------------------------------------------------------------
+-- Builder
+--------------------------------------------------------------------------------
+LXCG.Builder = {}
+local builderFrame, selectedTemplateId, selectedDeckId, editingTemplateId
+
+function LXCG.Builder:Toggle()
+    if not builderFrame then self:Build() end
+    if builderFrame:IsShown() then builderFrame:Hide()
+    else builderFrame:Show(); self:RefreshTemplates(); self:RefreshDecks() end
+end
+
+local function SmallBtn(parent, text, width, onClick)
+    local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    b:SetSize(width, 20)
+    b:SetBackdrop({ bgFile="Interface\\Buttons\\WHITE8x8", edgeFile="Interface\\Buttons\\WHITE8x8", edgeSize=1 })
+    b:SetBackdropColor(0.18, 0.18, 0.22, 1); b:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+    local l = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall"); l:SetAllPoints(); l:SetText(text)
+    b:SetScript("OnClick", onClick)
+    b:SetScript("OnEnter", function(s) s:SetBackdropColor(0.28, 0.28, 0.35, 1) end)
+    b:SetScript("OnLeave", function(s) s:SetBackdropColor(0.18, 0.18, 0.22, 1) end)
+    return b
+end
+
+function LXCG.Builder:Build()
+    local f = CreateFrame("Frame", "LXCGBuilder", UIParent, "BackdropTemplate")
+    f:SetSize(640, 480); f:SetPoint("CENTER")
+    f:SetBackdrop({ bgFile="Interface\\Buttons\\WHITE8x8", edgeFile="Interface\\Buttons\\WHITE8x8", edgeSize=2 })
+    f:SetBackdropColor(0.06, 0.06, 0.08, 0.98); f:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+    f:SetMovable(true); f:EnableMouse(true); f:RegisterForDrag("LeftButton"); f:SetClampedToScreen(true)
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local l, b = self:GetLeft(), self:GetBottom()
+        if l and b then LXCG.Storage:SetPref("builderX", l); LXCG.Storage:SetPref("builderY", b) end
+    end)
+    f:SetFrameStrata("HIGH"); f:Hide(); builderFrame = f
+    local prefs = LXCG.Storage:GetPrefs()
+    if prefs.builderX and prefs.builderY then
+        f:ClearAllPoints(); f:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", prefs.builderX, prefs.builderY)
+    end
+    f:CreateFontString(nil, "OVERLAY", "GameFontNormal"):SetPoint("TOPLEFT", 10, -8)
+    local closeBtn = CreateFrame("Button", nil, f, "UIPanelCloseButton"); closeBtn:SetPoint("TOPRIGHT", -2, -2)
+    local div = f:CreateTexture(nil, "ARTWORK")
+    div:SetPoint("TOP", f, "TOP", 0, -30); div:SetPoint("BOTTOM", f, "BOTTOM", 0, 8)
+    div:SetWidth(1); div:SetColorTexture(0.3, 0.3, 0.3, 1)
+    self:BuildTemplatePanel(f)
+    self:BuildDeckPanel(f)
+    self:BuildTemplateEditor(f)
+    self:BuildDeckEditor(f)
+    LXCG:On("TEMPLATES_CHANGED", function() LXCG.Builder:RefreshTemplates() end)
+    LXCG:On("DECKS_CHANGED",    function() LXCG.Builder:RefreshDecks() end)
+end
+
+--------------------------------------------------------------------------------
+-- Template panel (left)
+--------------------------------------------------------------------------------
+function LXCG.Builder:BuildTemplatePanel(parent)
+    local p = CreateFrame("Frame", nil, parent)
+    p:SetPoint("TOPLEFT", 8, -30); p:SetPoint("BOTTOMLEFT", 8, 8); p:SetWidth(306)
+    self.tPanel = p
+    p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall"):SetPoint("TOPLEFT", 0, 0)
+    local nb = SmallBtn(p, "New", 44, function() self:ShowEditor(nil) end); nb:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, 2)
+    local eb = SmallBtn(p, "Edit", 44, function() if selectedTemplateId then self:ShowEditor(selectedTemplateId) end end)
+    eb:SetPoint("RIGHT", nb, "LEFT", -4, 0)
+    local db = SmallBtn(p, "Del", 36, function()
+        if selectedTemplateId then LXCG.Data:DeleteTemplate(selectedTemplateId); selectedTemplateId = nil end
+    end); db:SetPoint("RIGHT", eb, "LEFT", -4, 0)
+    local sf = CreateFrame("ScrollFrame", nil, p, "UIPanelScrollFrameTemplate")
+    sf:SetPoint("TOPLEFT", 0, -20); sf:SetPoint("BOTTOMRIGHT", -22, 38)
+    local content = CreateFrame("Frame", nil, sf); content:SetWidth(280); content:SetHeight(1)
+    sf:SetScrollChild(content); self.tContent = content; self.tBtns = {}
+    -- Preview
+    local pv = CreateFrame("Frame", nil, p); pv:SetPoint("BOTTOMLEFT"); pv:SetPoint("BOTTOMRIGHT"); pv:SetHeight(32)
+    self.pvIcon = pv:CreateTexture(nil, "ARTWORK"); self.pvIcon:SetSize(24, 24)
+    self.pvIcon:SetPoint("LEFT"); self.pvIcon:SetTexCoord(0.07, 0.93, 0.07, 0.93); self.pvIcon:SetTexture(LXCG.CARD_BACK)
+    self.pvName = pv:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall"); self.pvName:SetPoint("LEFT", self.pvIcon, "RIGHT", 6, 0)
+    local ab = SmallBtn(p, "Add to Deck", 90, function()
+        if selectedTemplateId and selectedDeckId then LXCG.Data:AddToDeck(selectedDeckId, selectedTemplateId, 1) end
+    end); ab:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 4)
+end
+
+function LXCG.Builder:RefreshTemplates()
+    if not self.tContent then return end
+    for _, b in ipairs(self.tBtns) do b:Hide() end
+    local idx = 0
+    for tId, tmpl in pairs(LXCG.Data.templates) do
+        idx = idx + 1
+        local btn = self.tBtns[idx]
+        if not btn then
+            btn = CreateFrame("Button", nil, self.tContent); btn:SetSize(280, 22)
+            btn:SetHighlightTexture("Interface\\Buttons\\WHITE8x8"); btn:GetHighlightTexture():SetVertexColor(1,1,1,0.08)
+            btn._icon = btn:CreateTexture(nil, "ARTWORK"); btn._icon:SetSize(18, 18); btn._icon:SetPoint("LEFT", 2, 0)
+            btn._icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+            btn._label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            btn._label:SetPoint("LEFT", btn._icon, "RIGHT", 4, 0); btn._label:SetJustifyH("LEFT")
+            btn._sel = btn:CreateTexture(nil, "BACKGROUND"); btn._sel:SetAllPoints(); btn._sel:SetColorTexture(0.2, 0.4, 0.6, 0.3)
+            self.tBtns[idx] = btn
+        end
+        btn:SetPoint("TOPLEFT", 0, -(idx - 1) * 22)
+        btn._icon:SetTexture(tmpl.icon); btn._label:SetText(tmpl.name)
+        btn._sel:SetShown(tId == selectedTemplateId)
+        local cid = tId
+        btn:SetScript("OnClick", function() selectedTemplateId = cid; self:RefreshTemplates(); self:UpdatePreview() end)
+        btn:Show()
+    end
+    self.tContent:SetHeight(math.max(1, idx * 22)); self:UpdatePreview()
+end
+
+function LXCG.Builder:UpdatePreview()
+    if not selectedTemplateId then self.pvIcon:SetTexture(LXCG.CARD_BACK); self.pvName:SetText(""); return end
+    local t = LXCG.Data:GetTemplate(selectedTemplateId)
+    if t then self.pvIcon:SetTexture(t.icon)
+        self.pvName:SetText(t.name .. (t.category ~= "" and ("  |cff888888" .. t.category .. "|r") or ""))
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Deck panel (right)
+--------------------------------------------------------------------------------
+function LXCG.Builder:BuildDeckPanel(parent)
+    local p = CreateFrame("Frame", nil, parent)
+    p:SetPoint("TOPRIGHT", -8, -30); p:SetPoint("BOTTOMRIGHT", -8, 8); p:SetWidth(306)
+    self.dPanel = p
+    p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall"):SetPoint("TOPLEFT", 0, 0)
+    local nb = SmallBtn(p, "New Deck", 64, function()
+        local d = LXCG.Data:CreateDeck("Deck " .. (self:CountDecks() + 1))
+        selectedDeckId = d.id; self:RefreshDecks()
+    end); nb:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, 2)
+    local db = SmallBtn(p, "Del", 36, function()
+        if selectedDeckId then LXCG.Data:DeleteDeck(selectedDeckId); selectedDeckId = nil end
+    end); db:SetPoint("RIGHT", nb, "LEFT", -4, 0)
+    local pb = SmallBtn(p, "Props", 44, function()
+        if selectedDeckId then self:ShowDeckEditor(selectedDeckId) end
+    end); pb:SetPoint("RIGHT", db, "LEFT", -4, 0)
+
+    self.dSelBtns = {}
+    local dsa = CreateFrame("Frame", nil, p); dsa:SetPoint("TOPLEFT", 0, -18); dsa:SetPoint("TOPRIGHT", 0, -18)
+    dsa:SetHeight(24); self.dSelArea = dsa
+    local sf = CreateFrame("ScrollFrame", nil, p, "UIPanelScrollFrameTemplate")
+    sf:SetPoint("TOPLEFT", 0, -44); sf:SetPoint("BOTTOMRIGHT", -22, 8)
+    local content = CreateFrame("Frame", nil, sf); content:SetWidth(280); content:SetHeight(1)
+    sf:SetScrollChild(content); self.dContent = content; self.dCardBtns = {}
+end
+
+function LXCG.Builder:RefreshDecks()
+    if not self.dSelArea then return end
+    for _, b in ipairs(self.dSelBtns) do b:Hide() end
+    local idx = 0
+    for dId, deck in pairs(LXCG.Data.decks) do
+        idx = idx + 1
+        local btn = self.dSelBtns[idx]
+        if not btn then
+            btn = CreateFrame("Button", nil, self.dSelArea, "BackdropTemplate"); btn:SetSize(80, 20)
+            btn:SetBackdrop({ bgFile="Interface\\Buttons\\WHITE8x8", edgeFile="Interface\\Buttons\\WHITE8x8", edgeSize=1 })
+            btn._label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            btn._label:SetAllPoints(); btn._label:SetJustifyH("CENTER")
+            self.dSelBtns[idx] = btn
+        end
+        btn:SetPoint("TOPLEFT", (idx - 1) * 84, 0); btn._label:SetText(deck.name)
+        local sel = (dId == selectedDeckId)
+        btn:SetBackdropColor(sel and 0.2 or 0.12, sel and 0.2 or 0.12, sel and 0.3 or 0.15, 1)
+        btn:SetBackdropBorderColor(sel and 0.5 or 0.3, sel and 0.5 or 0.3, sel and 0.7 or 0.3, 1)
+        local cid = dId
+        btn:SetScript("OnClick", function() selectedDeckId = cid; self:RefreshDecks() end)
+        btn:Show()
+    end
+    self:RefreshDeckCards()
+end
+
+function LXCG.Builder:RefreshDeckCards()
+    if not self.dContent then return end
+    for _, b in ipairs(self.dCardBtns) do b:Hide() end
+    if not selectedDeckId then return end
+    local deck = LXCG.Data.decks[selectedDeckId]
+    if not deck then return end
+    local idx = 0
+    for _, entry in ipairs(deck.cards) do
+        idx = idx + 1
+        local tmpl = LXCG.Data:GetTemplate(entry.templateId)
+        local btn = self.dCardBtns[idx]
+        if not btn then
+            btn = CreateFrame("Button", nil, self.dContent); btn:SetSize(280, 22)
+            btn:SetHighlightTexture("Interface\\Buttons\\WHITE8x8"); btn:GetHighlightTexture():SetVertexColor(1,1,1,0.08)
+            btn._icon = btn:CreateTexture(nil, "ARTWORK"); btn._icon:SetSize(18, 18); btn._icon:SetPoint("LEFT", 2, 0)
+            btn._icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+            btn._label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            btn._label:SetPoint("LEFT", btn._icon, "RIGHT", 4, 0); btn._label:SetPoint("RIGHT", -42, 0); btn._label:SetJustifyH("LEFT")
+            btn._minus = CreateFrame("Button", nil, btn); btn._minus:SetSize(18, 18); btn._minus:SetPoint("RIGHT", -18, 0)
+            btn._minus:SetNormalFontObject("GameFontNormalSmall"); btn._minus:SetText("-")
+            local mhl = btn._minus:CreateTexture(nil, "HIGHLIGHT"); mhl:SetAllPoints(); mhl:SetColorTexture(1, 0.3, 0.3, 0.2)
+            btn._plus = CreateFrame("Button", nil, btn); btn._plus:SetSize(18, 18); btn._plus:SetPoint("RIGHT", 0, 0)
+            btn._plus:SetNormalFontObject("GameFontNormalSmall"); btn._plus:SetText("+")
+            local phl = btn._plus:CreateTexture(nil, "HIGHLIGHT"); phl:SetAllPoints(); phl:SetColorTexture(0.3, 1, 0.3, 0.2)
+            self.dCardBtns[idx] = btn
+        end
+        btn:SetPoint("TOPLEFT", 0, -(idx - 1) * 22)
+        btn._icon:SetTexture(tmpl and tmpl.icon or LXCG.CARD_BACK)
+        btn._label:SetText((tmpl and tmpl.name or "?") .. "  |cffaaaaaa x" .. entry.count .. "|r")
+        local ct = entry.templateId
+        btn._minus:SetScript("OnClick", function() LXCG.Data:RemoveFromDeck(selectedDeckId, ct, 1) end)
+        btn._plus:SetScript("OnClick", function() LXCG.Data:AddToDeck(selectedDeckId, ct, 1) end)
+        btn:Show()
+    end
+    self.dContent:SetHeight(math.max(1, idx * 22))
+end
+
+--------------------------------------------------------------------------------
+-- Template editor (with fields)
+--------------------------------------------------------------------------------
+function LXCG.Builder:BuildTemplateEditor(parent)
+    local ef = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    ef:SetSize(310, 310); ef:SetPoint("CENTER", parent); ef:SetFrameStrata("DIALOG")
+    ef:SetBackdrop({ bgFile="Interface\\Buttons\\WHITE8x8", edgeFile="Interface\\Buttons\\WHITE8x8", edgeSize=2 })
+    ef:SetBackdropColor(0.12, 0.12, 0.14, 0.98); ef:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
+    ef:EnableMouse(true); ef:Hide(); self.edFrame = ef
+
+    self.edTitle = ef:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    self.edTitle:SetPoint("TOP", 0, -10)
+
+    local function Row(lbl, yOff)
+        local l = ef:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        l:SetPoint("TOPLEFT", 12, yOff); l:SetWidth(64); l:SetJustifyH("RIGHT"); l:SetText(lbl)
+        local eb = CreateFrame("EditBox", nil, ef, "InputBoxTemplate")
+        eb:SetSize(190, 20); eb:SetPoint("LEFT", l, "RIGHT", 8, 0); eb:SetAutoFocus(false)
+        return eb
+    end
+
+    self.edName = Row("Name:", -34)
+    self.edCat = Row("Category:", -60)
+    self.edText = Row("Text:", -86)
+
+    -- Icon row
+    local il = ef:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    il:SetPoint("TOPLEFT", 12, -112); il:SetWidth(64); il:SetJustifyH("RIGHT"); il:SetText("Icon:")
+    self.edIconPv = ef:CreateTexture(nil, "ARTWORK"); self.edIconPv:SetSize(28, 28)
+    self.edIconPv:SetPoint("LEFT", il, "RIGHT", 8, 0); self.edIconPv:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    self.edIconPv:SetTexture(LXCG.CARD_BACK)
+    local bb = SmallBtn(ef, "Browse", 56, function()
+        LXCG.IconPicker:Open(function(iconId, displayText)
+            self.edIconField:SetText(displayText)
+        end)
+    end); bb:SetPoint("LEFT", self.edIconPv, "RIGHT", 6, 0)
+    self.edIconField = CreateFrame("EditBox", nil, ef, "InputBoxTemplate")
+    self.edIconField:SetSize(100, 20); self.edIconField:SetPoint("LEFT", bb, "RIGHT", 6, 0); self.edIconField:SetAutoFocus(false)
+    self.edIconField:SetScript("OnTextChanged", function(eb)
+        self.edIconPv:SetTexture(LXCG:ResolveIcon(eb:GetText()))
+    end)
+
+    -- Fields (3 fixed rows)
+    local flbl = ef:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    flbl:SetPoint("TOPLEFT", 12, -146); flbl:SetText("|cffaaaaaaFields (optional):|r")
+    self.edFields = {}
+    for i = 1, 3 do
+        local y = -164 - (i - 1) * 24
+        local nl = ef:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        nl:SetPoint("TOPLEFT", 20, y); nl:SetWidth(50); nl:SetJustifyH("RIGHT")
+        nl:SetText("|cff888888Name:|r")
+        local ne = CreateFrame("EditBox", nil, ef, "InputBoxTemplate")
+        ne:SetSize(80, 18); ne:SetPoint("LEFT", nl, "RIGHT", 4, 0); ne:SetAutoFocus(false)
+        local vl = ef:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        vl:SetPoint("LEFT", ne, "RIGHT", 6, 0); vl:SetText("|cff888888Val:|r")
+        local ve = CreateFrame("EditBox", nil, ef, "InputBoxTemplate")
+        ve:SetSize(80, 18); ve:SetPoint("LEFT", vl, "RIGHT", 4, 0); ve:SetAutoFocus(false)
+        self.edFields[i] = { nameBox = ne, valBox = ve }
+    end
+
+    local saveBtn = SmallBtn(ef, "Save", 60, function()
+        local name = self.edName:GetText()
+        local icon = self.edIconField:GetText()
+        local cat = self.edCat:GetText()
+        local text = self.edText:GetText()
+        if not name or name == "" then return end
+        local fields = {}
+        for _, row in ipairs(self.edFields) do
+            local n = strtrim(row.nameBox:GetText())
+            local v = strtrim(row.valBox:GetText())
+            if n ~= "" then fields[#fields + 1] = { name = n, value = v } end
+        end
+        if editingTemplateId then
+            LXCG.Data:UpdateTemplate(editingTemplateId, name, icon, cat, text, fields)
+        else
+            LXCG.Data:CreateTemplate(name, icon, cat, text, fields)
+        end
+        ef:Hide()
+    end); saveBtn:SetPoint("BOTTOMRIGHT", -12, 10)
+    SmallBtn(ef, "Cancel", 60, function() ef:Hide() end):SetPoint("RIGHT", saveBtn, "LEFT", -8, 0)
+end
+
+function LXCG.Builder:ShowEditor(templateId)
+    if not self.edFrame then return end
+    editingTemplateId = templateId
+    if templateId then
+        local t = LXCG.Data:GetTemplate(templateId)
+        if not t then return end
+        self.edTitle:SetText("Edit Template")
+        self.edName:SetText(t.name); self.edCat:SetText(t.category); self.edText:SetText(t.text)
+        local short = t.icon; if type(short) == "string" then short = short:gsub("Interface\\Icons\\", "") else short = tostring(short) end
+        self.edIconField:SetText(short); self.edIconPv:SetTexture(t.icon)
+        local fields = t.fields or {}
+        for i = 1, 3 do
+            local f = fields[i]
+            self.edFields[i].nameBox:SetText(f and f.name or "")
+            self.edFields[i].valBox:SetText(f and f.value or "")
+        end
+    else
+        self.edTitle:SetText("New Template")
+        self.edName:SetText(""); self.edCat:SetText(""); self.edText:SetText("")
+        self.edIconField:SetText(""); self.edIconPv:SetTexture(LXCG.CARD_BACK)
+        for i = 1, 3 do self.edFields[i].nameBox:SetText(""); self.edFields[i].valBox:SetText("") end
+    end
+    self.edFrame:Show(); self.edName:SetFocus()
+end
+
+--------------------------------------------------------------------------------
+-- Deck properties editor
+--------------------------------------------------------------------------------
+function LXCG.Builder:BuildDeckEditor(parent)
+    local ef = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    ef:SetSize(280, 180); ef:SetPoint("CENTER", parent); ef:SetFrameStrata("DIALOG")
+    ef:SetBackdrop({ bgFile="Interface\\Buttons\\WHITE8x8", edgeFile="Interface\\Buttons\\WHITE8x8", edgeSize=2 })
+    ef:SetBackdropColor(0.12, 0.12, 0.14, 0.98); ef:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
+    ef:EnableMouse(true); ef:Hide(); self.deckEdFrame = ef
+
+    ef:CreateFontString(nil, "OVERLAY", "GameFontNormal"):SetPoint("TOP", 0, -10)
+
+    local function DRow(lbl, yOff)
+        local l = ef:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        l:SetPoint("TOPLEFT", 12, yOff); l:SetWidth(64); l:SetJustifyH("RIGHT"); l:SetText(lbl)
+        local eb = CreateFrame("EditBox", nil, ef, "InputBoxTemplate")
+        eb:SetSize(170, 20); eb:SetPoint("LEFT", l, "RIGHT", 8, 0); eb:SetAutoFocus(false)
+        return eb
+    end
+
+    self.deNameBox = DRow("Name:", -34)
+    self.deDescBox = DRow("Desc:", -60)
+
+    -- Icon
+    local il = ef:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    il:SetPoint("TOPLEFT", 12, -86); il:SetWidth(64); il:SetJustifyH("RIGHT"); il:SetText("Icon:")
+    self.deIconPv = ef:CreateTexture(nil, "ARTWORK"); self.deIconPv:SetSize(24, 24)
+    self.deIconPv:SetPoint("LEFT", il, "RIGHT", 8, 0); self.deIconPv:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    local dbb = SmallBtn(ef, "Browse", 56, function()
+        LXCG.IconPicker:Open(function(iconId, displayText)
+            self.deIconField:SetText(displayText)
+            self.deIconPv:SetTexture(LXCG:ResolveIcon(displayText))
+        end)
+    end); dbb:SetPoint("LEFT", self.deIconPv, "RIGHT", 6, 0)
+    self.deIconField = CreateFrame("EditBox", nil, ef, "InputBoxTemplate")
+    self.deIconField:SetSize(90, 20); self.deIconField:SetPoint("LEFT", dbb, "RIGHT", 6, 0); self.deIconField:SetAutoFocus(false)
+    self.deIconField:SetScript("OnTextChanged", function(eb)
+        self.deIconPv:SetTexture(LXCG:ResolveIcon(eb:GetText()))
+    end)
+
+    local saveBtn = SmallBtn(ef, "Save", 60, function()
+        if not self._editingDeckId then return end
+        local name = self.deNameBox:GetText()
+        local icon = self.deIconField:GetText()
+        local desc = self.deDescBox:GetText()
+        LXCG.Data:UpdateDeck(self._editingDeckId, name, icon ~= "" and icon or nil, desc)
+        ef:Hide()
+    end); saveBtn:SetPoint("BOTTOMRIGHT", -12, 10)
+    SmallBtn(ef, "Cancel", 60, function() ef:Hide() end):SetPoint("RIGHT", saveBtn, "LEFT", -8, 0)
+end
+
+function LXCG.Builder:ShowDeckEditor(deckId)
+    if not self.deckEdFrame then return end
+    self._editingDeckId = deckId
+    local deck = LXCG.Data.decks[deckId]
+    if not deck then return end
+    self.deNameBox:SetText(deck.name)
+    self.deDescBox:SetText(deck.description or "")
+    local iconStr = deck.icon or ""
+    if type(iconStr) == "string" then iconStr = iconStr:gsub("Interface\\Icons\\", "") end
+    self.deIconField:SetText(tostring(iconStr))
+    self.deIconPv:SetTexture(deck.icon and LXCG:ResolveIcon(deck.icon) or LXCG.CARD_BACK)
+    self.deckEdFrame:Show(); self.deNameBox:SetFocus()
+end
+
+function LXCG.Builder:CountDecks()
+    local n = 0; for _ in pairs(LXCG.Data.decks) do n = n + 1 end; return n
+end
